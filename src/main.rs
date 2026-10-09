@@ -46,9 +46,23 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
     for notice in project.notices {
         eprintln!("uncuddle: {notice}");
     }
+    let mut violations = 0;
+    for file in &project.files {
+        for diagnostic in uncuddle::analysis::analyze(
+            &file.path,
+            &file.source,
+            &uncuddle::config::Config::default(),
+        )? {
+            eprintln!("{diagnostic}");
+            violations += 1;
+        }
+    }
     eprintln!(
-        "uncuddle: discovered {} source files; spacing checks are not implemented yet",
+        "uncuddle: checked {} files; {violations} violations",
         project.files.len()
     );
-    Ok(2)
+    if cli.fix {
+        anyhow::bail!("fix mode is not implemented yet");
+    }
+    Ok(i32::from(violations > 0))
 }
