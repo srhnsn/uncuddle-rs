@@ -1,0 +1,26 @@
+[package]
+name = "uncuddle-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Rust statement spacing linter and Cargo subcommand"
+license = "MIT"
+repository = "https://github.com/srhnsn/uncuddle-rs"
+
+[lib]
+name = "uncuddle"
+
+[[bin]]
+name = "cargo-uncuddle"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.5", features = ["derive"] }
+globset = "0.4"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+syn = { version = "2", features = ["full", "visit"] }
+tempfile = "3"
+toml = "0.8"
