@@ -46,23 +46,52 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
     for notice in project.notices {
         eprintln!("uncuddle: {notice}");
     }
-    let mut violations = 0;
+    let mut analyses = Vec::new();
     for file in &project.files {
-        for diagnostic in uncuddle::analysis::analyze(
+        let diagnostics = uncuddle::analysis::analyze(
             &file.path,
             &file.source,
             &uncuddle::config::Config::default(),
-        )? {
+        )?;
+        let fixed = if cli.fix {
+            uncuddle::fix::apply(&file.source, &diagnostics)?
+        } else {
+            file.source.clone()
+        };
+        analyses.push((file, diagnostics, fixed));
+    }
+    let mut violations = 0;
+    let mut fixed_files = 0;
+    if cli.fix {
+        // Preflight every changed source before modifying any file.
+        for (file, _, fixed) in &analyses {
+            if file.source != *fixed {
+                uncuddle::fix::verify_writable(&file.path)?;
+                uncuddle::fix::verify_unchanged(&file.path, &file.source)?;
+            }
+        }
+    }
+    for (file, diagnostics, fixed) in analyses {
+        let remaining = if cli.fix {
+            let remaining = uncuddle::analysis::analyze(
+                &file.path,
+                &fixed,
+                &uncuddle::config::Config::default(),
+            )?;
+            uncuddle::fix::write_if_unchanged(&file.path, &file.source, &fixed)?;
+            fixed_files += usize::from(file.source != fixed);
+            remaining
+        } else {
+            diagnostics
+        };
+        for diagnostic in remaining {
             eprintln!("{diagnostic}");
             violations += 1;
         }
     }
     eprintln!(
-        "uncuddle: checked {} files; {violations} violations",
+        "uncuddle: checked {} files; {fixed_files} files fixed; {violations} violations",
         project.files.len()
     );
-    if cli.fix {
-        anyhow::bail!("fix mode is not implemented yet");
-    }
     Ok(i32::from(violations > 0))
 }
