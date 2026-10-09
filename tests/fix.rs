@@ -100,6 +100,7 @@ fn refuses_concurrent_changes_and_leaves_no_temporary_files() {
 #[test]
 fn preserves_permissions_and_rejects_symlinks() {
     use std::os::unix::fs::{PermissionsExt, symlink};
+
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("source.rs");
     std::fs::write(&path, "original").unwrap();

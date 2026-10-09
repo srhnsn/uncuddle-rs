@@ -41,6 +41,8 @@ Macro arguments are opaque, including implicit captures in formatting strings.
 
 ## Rules and configuration
 
+All rules are enabled by default. Use `disable` to opt out of individual rules.
+
 | Rule | Default | Policy |
 | --- | --- | --- |
 | `function-spacing` | On | Separate function definitions and methods from sibling items, including short bodies. |
@@ -49,10 +51,10 @@ Macro arguments are opaque, including implicit captures in formatting strings.
 | `statement-groups` | On | Separate unrelated transitions between bindings/assignments and expressions. |
 | `before-exit` | On | Separate return/break/continue in larger immediate blocks. |
 | `before-tail-expression` | On | Apply the exit rule to implicit return expressions. |
-| `assignment-kinds` | Off | Separate new bindings from mutation. |
-| `local-item-spacing` | Off | Separate local items from executable statements. |
-| `after-block-value` | Off | Separate multiline block-valued expressions from unrelated subsequent work. |
-| `match-arm-spacing` | Off | Separate an arm with a larger block body from the next arm. |
+| `assignment-kinds` | On | Separate new bindings from assignment or compound assignment, even when related. |
+| `local-item-spacing` | On | Separate local items from executable statements. |
+| `after-block-value` | On | Separate multiline block-valued expressions from unrelated subsequent work. |
+| `match-arm-spacing` | On | Separate an arm with a larger block body from the next arm. |
 
 The default short-block exemption is two immediate statements/expressions,
 including the exit or tail. Physical line count does not affect it. Single-expression
@@ -66,8 +68,7 @@ Disable it with `disable = ["function-spacing"]` if you prefer grouped methods.
 Create `uncuddle.toml` at the **workspace root**, or pass `--config path/to/file.toml`:
 
 ```toml
-enable = ["match-arm-spacing"]
-disable = ["statement-groups"]
+disable = ["assignment-kinds", "match-arm-spacing"]
 short-block-max-statements = 2
 exclude = ["src/generated/**", "tests/fixtures/**"]
 ```
@@ -77,6 +78,8 @@ platforms. Excluded files are not parsed, and their module subtrees are not scan
 Unknown keys/rules, duplicate rule entries, contradictory enable/disable entries,
 and invalid globs are errors. A missing implicit config uses defaults; a missing
 explicit `--config` file is an error.
+Existing `enable` entries remain accepted for compatibility, but are redundant
+because every rule is on by default.
 
 To opt out a whole file, put `// uncuddle:skip-file` in its leading comments.
 `@generated` in a leading comment within the first ten lines also opts out.

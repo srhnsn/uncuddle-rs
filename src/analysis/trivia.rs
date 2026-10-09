@@ -25,7 +25,9 @@ impl Gap {
                 comments.push(begin..index);
             } else if bytes[index..start].starts_with(b"/*") {
                 let begin = index;
+
                 index += 2;
+
                 let mut depth = 1;
 
                 while index < start && depth > 0 {

@@ -52,10 +52,6 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
             println!("{rule} (default)");
         }
 
-        for rule in uncuddle::config::OPTIONAL_RULES {
-            println!("{rule} (optional)");
-        }
-
         return Ok(0);
     }
 

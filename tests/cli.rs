@@ -158,6 +158,12 @@ fn list_rules_does_not_require_a_cargo_project() {
         .unwrap();
 
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("before-control-flow (default)"));
-    assert!(String::from_utf8_lossy(&output.stdout).contains("function-spacing (default)"));
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    for rule in uncuddle::config::DEFAULT_RULES {
+        assert!(stdout.contains(&format!("{rule} (default)")));
+    }
+
+    assert!(!stdout.contains("(optional)"));
 }

@@ -40,12 +40,11 @@ fn separates_after_blocks_without_splitting_else_chains() {
 }
 
 #[test]
-fn preserves_related_bindings_assignments_mutation_and_consumption() {
+fn preserves_related_bindings_method_mutation_and_consumption() {
     for body in [
         "let a = 1;\nlet b = 2;",
         "let mut values = Vec::new();\nvalues.push(1);",
         "let (a, b) = pair();\nconsume(a, b);",
-        "let a = 1;\na += 1;",
         "builder.configure();\nlet result = builder.finish();",
         "let x = compute();\nx",
     ] {
@@ -227,7 +226,7 @@ fn skip_file_directives_only_apply_in_leading_comments() {
 }
 
 #[test]
-fn optional_rules_have_explicit_boundaries_and_stay_off_by_default() {
+fn all_spacing_rules_have_default_boundaries_and_can_be_disabled() {
     let cases = [
         ("assignment-kinds", "fn f() {\nlet x = 1;\nx = 2;\n}"),
         (
@@ -245,16 +244,48 @@ fn optional_rules_have_explicit_boundaries_and_stay_off_by_default() {
     ];
 
     for (rule, source) in cases {
-        assert!(check(source).is_empty(), "{rule}: {source}");
+        let got = check(source);
+
+        assert_eq!(got.len(), 1, "{rule}: {got:?}");
+        assert_eq!(got[0].rule, rule);
+
+        let fixed = uncuddle::fix::apply(source, &got).unwrap();
+
+        assert!(check(&fixed).is_empty());
 
         let config = Config {
-            enable: vec![rule.into()],
+            disable: vec![rule.into()],
             ..Config::default()
         };
         let got = analyze(Path::new("test.rs"), source, &config).unwrap();
 
-        assert_eq!(got.len(), 1, "{rule}: {got:?}");
-        assert_eq!(got[0].rule, rule);
+        assert!(got.is_empty(), "disabled {rule}: {got:?}");
+    }
+}
+
+#[test]
+fn separates_binding_and_assignment_transitions_including_router_setup() {
+    for body in [
+        "let a = 1;\na += 1;",
+        "a = 1;\nlet b = a;",
+        "let files = ServeDir::new(dir).append_index_html_on_directories(false);\nrouter = router\n    .route_service(\"/\", ServeFile::new(index))\n    .fallback(move |request: Request| files.oneshot(request));",
+    ] {
+        let source = format!("fn f() {{\n{body}\n}}\n");
+        let diagnostics = check(&source);
+
+        assert_eq!(diagnostics.len(), 1, "{body}: {diagnostics:?}");
+        assert_eq!(diagnostics[0].rule, "assignment-kinds");
+
+        let fixed = uncuddle::fix::apply(&source, &diagnostics).unwrap();
+        let boundary = body.find('\n').unwrap();
+        let expected = format!(
+            "fn f() {{\n{}\n{}\n}}\n",
+            &body[..boundary],
+            &body[boundary..]
+        );
+
+        assert_eq!(fixed, expected);
+        assert!(check(&fixed).is_empty());
     }
 }
 

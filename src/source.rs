@@ -28,6 +28,7 @@ pub(crate) fn skip_reason(source: &str) -> Option<&'static str> {
             }
         } else if bytes[index..].starts_with(b"/*") {
             index += 2;
+
             let mut depth = 1;
 
             while index < source.len() && depth > 0 {

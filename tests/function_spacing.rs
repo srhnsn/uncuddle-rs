@@ -13,7 +13,7 @@ fn separates_short_functions_in_every_supported_scope() {
         "impl Example {\n    fn a() {}\n    fn b() {}\n}\n",
         "impl Trait for Example {\n    fn a() {}\n    fn b() {}\n}\n",
         "trait Example {\n    fn a() {}\n    fn b() {}\n}\n",
-        "fn outer() {\n    work();\n    fn a() {}\n    fn b() {}\n}\n",
+        "fn outer() {\n    fn a() {}\n    fn b() {}\n}\n",
         "impl Example {\n    async fn a() {}\n    async fn b() {}\n}\n",
     ] {
         let config = Config {
@@ -51,7 +51,7 @@ fn separates_function_bodies_from_other_items_but_preserves_declaration_groups()
         "trait Example {\n    fn a();\n    fn b();\n}\n",
         "unsafe extern \"C\" {\n    fn a();\n    fn b();\n}\n",
         "const A: u8 = 1;\nconst B: u8 = 2;\n",
-        "fn outer() {\n    fn a() {}\n    work();\n}\n",
+        "fn outer() {\n    fn a() {}\n\n    work();\n}\n",
     ] {
         assert!(check(source, &Config::default()).is_empty(), "{source}");
     }

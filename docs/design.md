@@ -1,11 +1,13 @@
 # uncuddle-rs: agreed design
 
-Approved implementation design. Optional extensions are individually opt-in.
+Approved implementation design. All supported rules are enabled by default and
+can be disabled individually.
 
 ## Decisions from the discussion
 
 - Provide a Cargo subcommand: `cargo uncuddle`.
 - Use Rust-adapted WSL defaults rather than translating every Go rule literally.
+- Enable every supported rule by default; allow opt-out through `disable`.
 - Default to checking; apply edits only with `--fix`.
 - Separate setup statements from a following `if`, even when the condition uses their variables. Keep the setup statements together. Use the same default for `match`, `for`, `while`, and `loop`.
 - Treat implicit return (tail) expressions like explicit returns, with short bodies exempt.
@@ -30,26 +32,23 @@ Each rule has a stable identifier, actionable diagnostic, and individually confi
 
 1. **before-control-flow**: one blank line before standalone `if`, `match`, `for`, `while`, and `loop` when preceded by a sibling statement. No blank line at block start. Do not split `else if`, `if let`, `while let`, let-chains, or `let x = if/match ...` expressions. Related setup is still separated from a following standalone control-flow block.
 2. **after-control-flow**: separate a completed standalone control-flow statement from a following sibling. Never split an `if`/`else` chain; never put a blank line before a closing brace.
-3. **statement-groups**: keep consecutive bindings/assignments together; distinguish setup, side effects, and local items. Permit immediately related value consumption or mutation, such as `let mut values = Vec::new(); values.push(x);`. Separate clearly unrelated transitions, such as `let x = compute(); log_unrelated();`. Use syntax and conservative local binding tracking, not method-name guesses or claimed type analysis. Opaque macro arguments are not evidence of variable use. Retain existing group boundaries unless a specific removal rule applies.
+3. **statement-groups**: keep consecutive bindings together and consecutive assignments together; distinguish setup, side effects, and local items. Permit immediately related value consumption or method mutation, such as `let mut values = Vec::new(); values.push(x);`. Separate clearly unrelated transitions, such as `let x = compute(); log_unrelated();`. Use syntax and conservative local binding tracking, not method-name guesses or claimed type analysis. Opaque macro arguments are not evidence of variable use. Retain existing group boundaries unless a specific removal rule applies.
 4. **before-exit**: separate `return`, `break` (including break values), and `continue` in larger immediate blocks. Short-block threshold: at most two immediate statements/expressions, including the exit. Count syntax nodes rather than physical lines, so changing rustfmt's line width does not change diagnostics.
 5. **before-tail-expression**: use the same larger-block rule for the final value expression. Preserve idioms such as `let x = compute(); x` and single-expression function bodies. A tail `if`/`match` also follows before-control-flow; merge overlapping diagnostics into one edit.
-6. **function-spacing**: separate function definitions from adjacent sibling items in files, inline modules, impls, traits with default method bodies, and local item groups. This rule has no short-body exemption. Consecutive trait signatures without bodies stay grouped. Insert before leading comments, documentation, and attributes rather than separating them from the definition. Local item-to-executable-statement separation remains optional.
-
-### Optional rules
-
-- **match-arm-spacing**: separate substantial adjacent match arms. Default off to avoid spreading short pattern tables.
-- **after-block-value**: separate a multiline block-valued initializer, closure definition, async block, or unsafe block from subsequent independent work. Avoid separating a value from an immediate related consumer. Default off initially because these patterns need clearer examples and overlap resolution.
-- **assignment-kinds**: distinguish introducing new bindings from later mutation. Default off; Rust shadowing and builder patterns often benefit from remaining together.
-- **local-item-spacing**: separate local const/type/function definitions from executable statements. Default off initially; do not enforce Go-style declaration grouping.
+6. **function-spacing**: separate function definitions from adjacent sibling items in files, inline modules, impls, traits with default method bodies, and local item groups. This rule has no short-body exemption. Consecutive trait signatures without bodies stay grouped. Insert before leading comments, documentation, and attributes rather than separating them from the definition.
+7. **match-arm-spacing**: separate substantial adjacent match arms using the short-block threshold.
+8. **after-block-value**: separate a multiline block-valued initializer, closure definition, async block, or unsafe block from subsequent independent work. Avoid separating a value from an immediate related consumer.
+9. **assignment-kinds**: distinguish introducing new bindings from assignments or compound assignments, even when the value is related.
+10. **local-item-spacing**: separate local const/type/function definitions from executable statements; do not enforce Go-style declaration grouping.
 
 ### WSL rules that need adaptation or omission
 
 | WSL rules | Rust treatment |
 | --- | --- |
-| `assign`, `expr`, `after-expr`, `assign-expr`, `assign-exclusive` | General statement grouping plus optional stricter assignment-kind rule. |
+| `assign`, `expr`, `after-expr`, `assign-expr`, `assign-exclusive` | General statement grouping plus separation between bindings and assignments. |
 | `if`, `for`, `range`, `switch`, `type-switch`, `after-block` | Statement boundary rules for Rust if/match/for/while/loop. No special type-switch rule. |
 | `return`, `branch`, `branch-max-lines` | Include tail expressions and break values; use immediate statement counts rather than line counts. No goto/fallthrough. |
-| `decl`, `after-decl` | Optional local-item separation. Rust let is an executable binding, not a Go var declaration. No declaration rewrites. |
+| `decl`, `after-decl` | Local-item separation. Rust let is an executable binding, not a Go var declaration. No declaration rewrites. |
 | `inc-dec` | Covered by assignment grouping for `+=`/`-=`; Rust has no ++/--. |
 | `append` | General related mutation rules; no special recognition of push/extend by name. |
 | `err` | Do not translate the forced adjacency rule. Rust uses `?`, let-else, and Result/Option matching. Manual if/match checks follow the chosen control-flow boundary rule. |
@@ -58,7 +57,7 @@ Each rule has a stable identifier, actionable diagnostic, and individually confi
 | `label` | No blanket rule. Rust labels support structured loop/block control and are not Go goto labels. |
 | `leading-whitespace`, `trailing-whitespace` | Leave block-edge formatting to rustfmt; no redundant default rules. |
 | `cuddle-group`, `cuddle-max-statements`, `allow-first-in-block`, `allow-whole-block` | Do not carry over these options for control flow: the chosen policy separates the entire preceding setup group. |
-| `case-max-lines` | Optional match-arm spacing, without Go indentation heuristics. |
+| `case-max-lines` | Match-arm spacing, without Go indentation heuristics. |
 
 Rust-specific safeguards are as important as additional rules: preserve `?` chains and `.await`; keep let-else intact; handle destructuring and shadowing conservatively; keep SAFETY comments attached to unsafe code; never insert gaps inside attributes/doc comments or macro token trees. Walk ordinary Rust blocks inside closures, async functions, and unsafe blocks without guessing ownership semantics.
 
@@ -87,7 +86,7 @@ No runtime rustfmt precondition, subprocess, automatic formatting, or requiremen
 2. **Discovery and diagnostics**: package/workspace/module discovery, stable diagnostics and exit codes, source/trivia safety. Commit after fixture coverage for workspace defaults, explicit targets/path modules, parse errors, and exclusions.
 3. **Core rules**: before/after control flow, statement groups, exits and tails with conflict resolution. Commit after positive/negative fixtures for each rule, short bodies, nesting, shadowing, comments, and let-else.
 4. **Fixer and rustfmt regression suite**: blank-line edits, dry analysis consistency, idempotence, line endings and safe writes; compatibility matrix on MSRV and stable rustfmt. Commit after real `cargo uncuddle --fix` then `cargo fmt --check` fixtures pass.
-5. **Configuration and usability**: supported optional rules, config errors, skip behavior, documentation and end-to-end install/use. Commit after cargo test, fmt/clippy for this repository, and a consumer workspace smoke test. Refresh saved cloud setup/startup instructions after they have actually been exercised.
+5. **Configuration and usability**: supported configurable rules, config errors, skip behavior, documentation and end-to-end install/use. Commit after cargo test, fmt/clippy for this repository, and a consumer workspace smoke test. Refresh saved cloud setup/startup instructions after they have actually been exercised.
 
 Use the existing checkout; do not create Git worktrees for cloud tasks. Do not create a commit merely to record installation artifacts outside the repository.
 

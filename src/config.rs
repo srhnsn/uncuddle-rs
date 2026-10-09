@@ -11,9 +11,6 @@ pub const DEFAULT_RULES: &[&str] = &[
     "statement-groups",
     "before-exit",
     "before-tail-expression",
-];
-
-pub const OPTIONAL_RULES: &[&str] = &[
     "match-arm-spacing",
     "after-block-value",
     "assignment-kinds",
@@ -23,6 +20,7 @@ pub const OPTIONAL_RULES: &[&str] = &[
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Config {
+    /// Retained for existing configs; every known rule is already enabled.
     pub enable: Vec<String>,
     pub disable: Vec<String>,
     pub short_block_max_statements: usize,
@@ -66,7 +64,7 @@ impl Config {
         let mut names = BTreeSet::new();
 
         for rule in self.enable.iter().chain(&self.disable) {
-            if !DEFAULT_RULES.contains(&rule.as_str()) && !OPTIONAL_RULES.contains(&rule.as_str()) {
+            if !DEFAULT_RULES.contains(&rule.as_str()) {
                 bail!("unknown rule `{rule}`");
             }
 
@@ -94,7 +92,6 @@ impl Config {
     }
 
     pub fn enabled(&self, rule: &str) -> bool {
-        !self.disable.iter().any(|r| r == rule)
-            && (DEFAULT_RULES.contains(&rule) || self.enable.iter().any(|r| r == rule))
+        DEFAULT_RULES.contains(&rule) && !self.disable.iter().any(|r| r == rule)
     }
 }

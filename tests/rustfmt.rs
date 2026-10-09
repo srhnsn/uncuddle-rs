@@ -96,6 +96,7 @@ fn rustfmt_never_reverts_uncuddle_fixes() {
         "fn f() { let a = compute(); match a { 1 => { let x = 1; let y = 2; consume(x, y); } _ => other(), } finish(); }",
         "fn f() { let a = { work(); other() }; finish(); }",
         "fn f() { let x = 1; x = 2; consume(x); }",
+        "fn f() { let files = ServeDir::new(dir).append_index_html_on_directories(false); router = router.route_service(\"/\", ServeFile::new(index)).fallback(move |request: Request| files.oneshot(request)); }",
         "fn f() { const X: i32 = 1; consume(X); }",
         "fn f() { let a = 1;\n#[allow(unused_variables)]\nlet b = { let x = 1; let y = 2; x }; }",
         "fn first() {}\n// Next function.\n/// Documentation.\n#[allow(unused)]\nfn second() {}",
@@ -117,10 +118,15 @@ fn rustfmt_never_reverts_uncuddle_fixes() {
     let rules = [
         Config::default(),
         Config {
-            enable: uncuddle::config::OPTIONAL_RULES
-                .iter()
-                .map(|s| (*s).into())
-                .collect(),
+            disable: [
+                "match-arm-spacing",
+                "after-block-value",
+                "assignment-kinds",
+                "local-item-spacing",
+            ]
+            .iter()
+            .map(|s| (*s).into())
+            .collect(),
             ..Config::default()
         },
     ];

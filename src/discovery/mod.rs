@@ -124,6 +124,7 @@ pub fn load_targets(options: &Options) -> Result<Targets> {
     } else {
         metadata.workspace_default_members.iter().cloned().collect()
     };
+
     let targets = metadata
         .packages
         .into_iter()

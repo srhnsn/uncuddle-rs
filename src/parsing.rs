@@ -18,6 +18,7 @@ pub fn parse(source: &str, edition: &str) -> Result<syn::File, syn::Error> {
             Ok(file) => return Ok(file),
             Err(error) => {
                 let mut changed = false;
+
                 tokens = normalize(tokens, &error.span().byte_range(), &mut changed);
 
                 if !changed {
@@ -42,6 +43,7 @@ fn prepare(source: &str) -> Cow<'_, str> {
     } else {
         bom
     };
+
     let mut input = source.as_bytes().to_vec();
     input[..end].fill(b' ');
 
@@ -107,6 +109,7 @@ fn normalize(
 
                 TokenTree::Group(replacement)
             }
+
             token => token,
         })
         .collect()
