@@ -7,8 +7,11 @@ fn cargo_and_direct_help_work() {
             .args(args)
             .output()
             .unwrap();
+
         assert!(output.status.success());
+
         let stdout = String::from_utf8(output.stdout).unwrap();
+
         assert!(stdout.contains("--fix"));
         assert!(stdout.contains("--workspace"));
     }
@@ -23,6 +26,7 @@ fn fixture(source: &str) -> tempfile::TempDir {
     )
     .unwrap();
     std::fs::write(dir.path().join("src/main.rs"), source).unwrap();
+
     dir
 }
 
@@ -39,12 +43,15 @@ fn check_fix_and_check_again_work_without_rustfmt_on_path() {
             .arg(dir.path().join("Cargo.toml"));
         // Metadata needs Cargo only; the runtime cannot find rustfmt here.
         command.env("CARGO", env!("CARGO")).env("PATH", dir.path());
+
         if fix {
             command.arg("--fix");
         }
+
         command.output().unwrap()
     };
     let check = run(false);
+
     assert_eq!(
         check.status.code(),
         Some(1),
@@ -55,7 +62,9 @@ fn check_fix_and_check_again_work_without_rustfmt_on_path() {
         std::fs::read_to_string(dir.path().join("src/main.rs")).unwrap(),
         source
     );
+
     let fixed = run(true);
+
     assert!(
         fixed.status.success(),
         "{}",
@@ -63,11 +72,13 @@ fn check_fix_and_check_again_work_without_rustfmt_on_path() {
     );
     assert!(run(false).status.success());
     assert!(!dir.path().join("Cargo.lock").exists());
+
     let fmt = Command::new(env!("CARGO"))
         .args(["fmt", "--check", "--manifest-path"])
         .arg(dir.path().join("Cargo.toml"))
         .output()
         .unwrap();
+
     assert!(
         fmt.status.success(),
         "{}",
@@ -86,7 +97,60 @@ fn unresolved_fixes_and_operational_errors_have_different_exit_codes() {
             .output()
             .unwrap()
     };
+
     assert_eq!(run().status.code(), Some(1));
     std::fs::write(dir.path().join("src/main.rs"), "fn main(").unwrap();
     assert_eq!(run().status.code(), Some(2));
+}
+
+#[test]
+fn loads_config_before_parsing_excluded_files_and_supports_skip_file() {
+    let dir =
+        fixture("mod generated; mod ignored;\nfn main() {\nlet a = 1;\nif a > 0 { work(); }\n}\n");
+    std::fs::write(dir.path().join("src/generated.rs"), "invalid syntax").unwrap();
+    std::fs::write(
+        dir.path().join("src/ignored.rs"),
+        "// uncuddle:skip-file\ninvalid syntax",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("uncuddle.toml"),
+        "disable=['before-control-flow']\nexclude=['src/generated.rs']",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-uncuddle"))
+        .arg("--manifest-path")
+        .arg(dir.path().join("Cargo.toml"))
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("skipped excluded"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("skip-file"));
+    std::fs::write(dir.path().join("uncuddle.toml"), "enable=['unknown']").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-uncuddle"))
+        .arg("--manifest-path")
+        .arg(dir.path().join("Cargo.toml"))
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unknown rule"));
+}
+
+#[test]
+fn list_rules_does_not_require_a_cargo_project() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-uncuddle"))
+        .current_dir(dir.path())
+        .arg("--list-rules")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("before-control-flow (default)"));
 }

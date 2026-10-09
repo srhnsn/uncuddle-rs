@@ -7,7 +7,7 @@ Approved implementation design. Optional extensions are individually opt-in.
 - Provide a Cargo subcommand: `cargo uncuddle`.
 - Use Rust-adapted WSL defaults rather than translating every Go rule literally.
 - Default to checking; apply edits only with `--fix`.
-- Separate setup statements from a following `if`, even when the condition uses their variables. Keep the setup statements together. Propose the same default for `match`, `for`, `while`, and `loop`.
+- Separate setup statements from a following `if`, even when the condition uses their variables. Keep the setup statements together. Use the same default for `match`, `for`, `while`, and `loop`.
 - Treat implicit return (tail) expressions like explicit returns, with short bodies exempt.
 - Use rustfmt only in development and automated tests. The installed tool must not invoke or require rustfmt, including in fix mode.
 - Make focused commits after implementation milestones. Do not push or publish without a request.
@@ -22,7 +22,7 @@ Both rustfmt versions preserved a single blank line at the tested statement boun
 
 Cargo's documented integration is an executable named `cargo-uncuddle`, found through Cargo's executable search. Cargo supplies an extra `uncuddle` argument; support both `cargo uncuddle ...` and direct `cargo-uncuddle ...` invocation. Tested `cargo metadata --frozen --no-deps --format-version 1` with an unavailable dependency: project discovery succeeded without compilation or dependency resolution.
 
-## Proposed rules
+## Rules
 
 Each rule has a stable identifier, actionable diagnostic, and individually configurable enable/disable setting. Fixes only add or remove whole blank lines between supported syntax nodes. Never rewrite tokens, reorder statements, or introduce explicit returns.
 
@@ -31,10 +31,10 @@ Each rule has a stable identifier, actionable diagnostic, and individually confi
 1. **before-control-flow**: one blank line before standalone `if`, `match`, `for`, `while`, and `loop` when preceded by a sibling statement. No blank line at block start. Do not split `else if`, `if let`, `while let`, let-chains, or `let x = if/match ...` expressions. Related setup is still separated from a following standalone control-flow block.
 2. **after-control-flow**: separate a completed standalone control-flow statement from a following sibling. Never split an `if`/`else` chain; never put a blank line before a closing brace.
 3. **statement-groups**: keep consecutive bindings/assignments together; distinguish setup, side effects, and local items. Permit immediately related value consumption or mutation, such as `let mut values = Vec::new(); values.push(x);`. Separate clearly unrelated transitions, such as `let x = compute(); log_unrelated();`. Use syntax and conservative local binding tracking, not method-name guesses or claimed type analysis. Opaque macro arguments are not evidence of variable use. Retain existing group boundaries unless a specific removal rule applies.
-4. **before-exit**: separate `return`, `break` (including break values), and `continue` in larger immediate blocks. Proposed short-block threshold: at most two immediate statements/expressions, including the exit. Count syntax nodes rather than physical lines, so changing rustfmt's line width does not change diagnostics.
+4. **before-exit**: separate `return`, `break` (including break values), and `continue` in larger immediate blocks. Short-block threshold: at most two immediate statements/expressions, including the exit. Count syntax nodes rather than physical lines, so changing rustfmt's line width does not change diagnostics.
 5. **before-tail-expression**: use the same larger-block rule for the final value expression. Preserve idioms such as `let x = compute(); x` and single-expression function bodies. A tail `if`/`match` also follows before-control-flow; merge overlapping diagnostics into one edit.
 
-### Optional extensions
+### Optional rules
 
 - **match-arm-spacing**: separate substantial adjacent match arms. Default off to avoid spreading short pattern tables.
 - **after-block-value**: separate a multiline block-valued initializer, closure definition, async block, or unsafe block from subsequent independent work. Avoid separating a value from an immediate related consumer. Default off initially because these patterns need clearer examples and overlap resolution.
@@ -69,7 +69,7 @@ Let F be rustfmt and U be uncuddle. The primary regression invariant on already 
 
 No runtime rustfmt precondition, subprocess, automatic formatting, or requirement to preformat input. For v1, autofix only unambiguous boundaries between distinct source lines. If the source packs multiple statements onto a single line, report a boundary requiring formatting/manual intervention rather than changing indentation or code layout beyond blank lines.
 
-## Implementation architecture
+## Implementation architecture and rationale
 
 - Package `uncuddle-rs`, library plus `cargo-uncuddle` binary; proposed edition 2024 and MSRV 1.85, subject to dependency compatibility checks.
 - `syn` 2 full AST/visitor plus `proc_macro2` span locations. Keep original source bytes and a line/byte map; use an accompanying token/trivia layer for comments, strings, and safe boundaries. This is a syntax tool, not a rustc plugin, so it can inspect code without building or fetching its application dependencies.

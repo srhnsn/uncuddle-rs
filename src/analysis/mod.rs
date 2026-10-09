@@ -17,7 +17,25 @@ mod trivia;
 /// Analyze source without compiling or invoking rustfmt. Macro contents are
 /// opaque; edits are only proposed at boundaries between AST siblings.
 pub fn analyze(path: &Path, source: &str, config: &Config) -> Result<Vec<Diagnostic>, syn::Error> {
-    let ast = crate::parse(source)?;
+    analyze_with_edition(path, source, "2024", config)
+}
+
+pub fn analyze_with_edition(
+    path: &Path,
+    source: &str,
+    edition: &str,
+    config: &Config,
+) -> Result<Vec<Diagnostic>, syn::Error> {
+    if crate::source::skip_reason(source).is_some() {
+        return Ok(Vec::new());
+    }
+
+    let ast = crate::parse_with_edition(source, edition)?;
+
+    if skip(&ast.attrs) {
+        return Ok(Vec::new());
+    }
+
     let mut analyzer = Analyzer {
         path,
         source,
@@ -26,6 +44,7 @@ pub fn analyze(path: &Path, source: &str, config: &Config) -> Result<Vec<Diagnos
         lines: lines::LineIndex::new(source),
     };
     analyzer.visit_file(&ast);
+
     Ok(analyzer.diagnostics.into_values().collect())
 }
 
@@ -47,15 +66,19 @@ impl Analyzer<'_> {
         if !self.config.enabled(rule) {
             return;
         }
+
         let end = previous.byte_range().end;
         let start = next.byte_range().start;
+
         if end > start || start > self.source.len() {
             return;
         }
+
         let Some(gap) = Gap::scan(self.source, end, start) else {
             self.report(start, rule, None);
             return;
         };
+
         if !gap.has_blank {
             self.report(start, rule, gap.insert_at);
         }
@@ -63,6 +86,7 @@ impl Analyzer<'_> {
 
     fn report(&mut self, start: usize, rule: &'static str, insert_at: Option<usize>) {
         let (line, column) = self.lines.location(self.source, start);
+
         self.diagnostics.entry(start).or_insert_with(|| Diagnostic {
             path: self.path.to_owned(),
             line,
@@ -83,6 +107,7 @@ impl Analyzer<'_> {
                 block.stmts.len(),
                 self.config,
             );
+
             if let Some(rule) = rule {
                 self.boundary(previous.span(), next.span(), rule);
             }
@@ -102,8 +127,11 @@ impl<'ast> Visit<'ast> for Analyzer<'_> {
             syn::Item::Mod(i) => &i.attrs,
             syn::Item::Impl(i) => &i.attrs,
             syn::Item::Trait(i) => &i.attrs,
+            syn::Item::Const(i) => &i.attrs,
+            syn::Item::Static(i) => &i.attrs,
             _ => return visit::visit_item(self, item),
         };
+
         if !skip(attrs) {
             visit::visit_item(self, item);
         }
@@ -121,8 +149,15 @@ impl<'ast> Visit<'ast> for Analyzer<'_> {
         }
     }
 
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        if !skip(&local.attrs) {
+            visit::visit_local(self, local);
+        }
+    }
+
     fn visit_expr(&mut self, expr: &'ast Expr) {
         let attrs = expr_attrs(expr);
+
         if !skip(attrs) {
             visit::visit_expr(self, expr);
         }
@@ -137,6 +172,7 @@ impl<'ast> Visit<'ast> for Analyzer<'_> {
                 }
             }
         }
+
         visit::visit_expr_match(self, expr);
     }
 }

@@ -13,6 +13,7 @@ impl LineIndex {
                 .enumerate()
                 .filter_map(|(i, b)| (b == b'\n').then_some(i + 1)),
         );
+
         Self { starts }
     }
 

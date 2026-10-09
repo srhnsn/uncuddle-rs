@@ -9,6 +9,7 @@ use std::path::Path;
 pub fn apply(source: &str, diagnostics: &[Diagnostic]) -> Result<String> {
     let positions: BTreeSet<_> = diagnostics.iter().filter_map(|d| d.insert_at).collect();
     let mut output = source.to_owned();
+
     for position in positions.into_iter().rev() {
         if position == 0
             || position >= source.len()
@@ -17,6 +18,7 @@ pub fn apply(source: &str, diagnostics: &[Diagnostic]) -> Result<String> {
         {
             bail!("invalid blank-line edit at byte {position}");
         }
+
         let newline = if source[..position].ends_with("\r\n") {
             "\r\n"
         } else {
@@ -24,6 +26,7 @@ pub fn apply(source: &str, diagnostics: &[Diagnostic]) -> Result<String> {
         };
         output.insert_str(position, newline);
     }
+
     Ok(output)
 }
 
@@ -33,6 +36,7 @@ pub fn write_if_unchanged(path: &Path, original: &str, replacement: &str) -> Res
     if original == replacement {
         return Ok(());
     }
+
     let metadata = verify_writable(path)?;
     let mut temporary = tempfile::Builder::new().prefix(".uncuddle-").tempfile_in(
         path.parent()
@@ -47,6 +51,7 @@ pub fn write_if_unchanged(path: &Path, original: &str, replacement: &str) -> Res
     temporary
         .persist(path)
         .with_context(|| format!("cannot atomically replace {}", path.display()))?;
+
     Ok(())
 }
 
@@ -59,17 +64,20 @@ pub fn verify_unchanged(path: &Path, original: &str) -> Result<()> {
             path.display()
         );
     }
+
     Ok(())
 }
 
 pub fn verify_writable(path: &Path) -> Result<std::fs::Metadata> {
     let metadata = std::fs::symlink_metadata(path)
         .with_context(|| format!("cannot inspect {}", path.display()))?;
+
     if !metadata.file_type().is_file() || metadata.permissions().readonly() {
         bail!(
             "refusing to replace non-regular or read-only file {}",
             path.display()
         );
     }
+
     Ok(metadata)
 }

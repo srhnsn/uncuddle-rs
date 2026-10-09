@@ -54,6 +54,7 @@ pub(super) fn for_boundary(
         is_tail: is_last && matches!(next, Stmt::Expr(_, None)),
         is_large: block_size > config.short_block_max_statements,
     };
+
     POLICIES
         .iter()
         .find_map(|(id, predicate)| (config.enabled(id) && predicate(&boundary)).then_some(*id))

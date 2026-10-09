@@ -3,7 +3,7 @@
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use uncuddle::{analysis::analyze, config::Config, fix};
+use uncuddle::{analysis::analyze_with_edition, config::Config, fix};
 
 fn format(source: &str, edition: &str, config: &Path) -> String {
     let executable = std::env::var_os("UNCUDDLE_TEST_RUSTFMT").unwrap_or_else(|| "rustfmt".into());
@@ -28,11 +28,13 @@ fn format(source: &str, edition: &str, config: &Path) -> String {
         .write_all(source.as_bytes())
         .unwrap();
     let output = child.wait_with_output().unwrap();
+
     assert!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+
     String::from_utf8(output.stdout).unwrap()
 }
 
@@ -78,27 +80,44 @@ fn rustfmt_never_reverts_uncuddle_fixes() {
             ..Config::default()
         },
     ];
+
     for (config_index, options) in configs.iter().enumerate() {
         let path = directory.path().join(format!("{config_index}.toml"));
         std::fs::write(&path, options).unwrap();
+
         for edition in ["2015", "2018", "2021", "2024"] {
             let mut sources = cases.to_vec();
+
+            if edition == "2015" {
+                sources.push("fn async() { let dyn = 1; if dyn > 0 { work(); } finish(); } fn f(x: &dyn Trait) { let await = x; consume(await); }");
+            }
+
             sources.push("fn f() { let Some(x) = value() else { return; }; if x > 0 { work(); } }");
+
             if edition != "2015" {
                 sources.push("async fn f() { let x = read().await?; if x > 0 { work().await; } finish().await?; }");
                 sources.push("fn f() { let x = async { let a = 1; let b = 2; a }; finish(); }");
             }
+
             for (case_index, source) in sources.into_iter().enumerate() {
                 let baseline = format(source, edition, &path);
+
                 for config in &rules {
-                    let diagnostics = analyze(Path::new("fixture.rs"), &baseline, config).unwrap();
+                    let diagnostics =
+                        analyze_with_edition(Path::new("fixture.rs"), &baseline, edition, config)
+                            .unwrap();
                     let fixed = fix::apply(&baseline, &diagnostics).unwrap();
                     let reformatted = format(&fixed, edition, &path);
+
                     assert_eq!(
                         reformatted, fixed,
                         "case {case_index}, edition {edition}, options {options:?}"
                     );
-                    let remaining = analyze(Path::new("fixture.rs"), &fixed, config).unwrap();
+
+                    let remaining =
+                        analyze_with_edition(Path::new("fixture.rs"), &fixed, edition, config)
+                            .unwrap();
+
                     assert!(remaining.is_empty(), "{remaining:?}\n{fixed}");
                     assert_eq!(fix::apply(&fixed, &remaining).unwrap(), fixed);
                 }

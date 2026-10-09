@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 mod modules;
+mod paths;
+use crate::config::Config;
 use modules::Walker;
 pub use modules::is_generated;
 
@@ -51,22 +53,38 @@ struct Target {
     edition: String,
 }
 
+/// Cargo-selected targets, separated from source scanning so exclusions can
+/// be loaded before reading or parsing excluded files.
+pub struct Targets {
+    pub root: PathBuf,
+    targets: Vec<Target>,
+    target_directory: PathBuf,
+}
+
 /// Discover source targets without compiling, resolving dependencies, or
 /// allowing Cargo to write lockfiles.
 pub fn discover(options: &Options) -> Result<Project> {
+    scan(load_targets(options)?, &Config::default())
+}
+
+pub fn load_targets(options: &Options) -> Result<Targets> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = Command::new(cargo);
     command.args(["metadata", "--frozen", "--no-deps", "--format-version", "1"]);
+
     if let Some(path) = &options.manifest_path {
         command.arg("--manifest-path").arg(path);
     }
+
     let output = command.output().context("could not run Cargo metadata")?;
+
     if !output.status.success() {
         bail!(
             "Cargo metadata failed: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         );
     }
+
     let metadata: Metadata =
         serde_json::from_slice(&output.stdout).context("Cargo returned invalid metadata")?;
     let manifest = options
@@ -90,6 +108,7 @@ pub fn discover(options: &Options) -> Result<Project> {
         metadata.workspace_members.iter().cloned().collect()
     } else if !options.packages.is_empty() {
         let mut ids = BTreeSet::new();
+
         for name in &options.packages {
             let package = metadata
                 .packages
@@ -98,32 +117,48 @@ pub fn discover(options: &Options) -> Result<Project> {
                 .with_context(|| format!("unknown workspace package `{name}`"))?;
             ids.insert(package.id.clone());
         }
+
         ids
     } else if let Some(package) = current {
         BTreeSet::from([package.id.clone()])
     } else {
         metadata.workspace_default_members.iter().cloned().collect()
     };
+    let targets = metadata
+        .packages
+        .into_iter()
+        .filter(|p| ids.contains(&p.id))
+        .flat_map(|p| p.targets)
+        .collect();
+
+    Ok(Targets {
+        root: metadata.workspace_root.canonicalize()?,
+        targets,
+        target_directory: metadata.target_directory,
+    })
+}
+
+pub fn scan(targets: Targets, config: &Config) -> Result<Project> {
     let mut walker = Walker {
         files: BTreeMap::new(),
         visited: BTreeSet::new(),
         active: BTreeSet::new(),
         notices: Vec::new(),
-        excluded_root: metadata.target_directory,
+        excluded_root: targets.target_directory,
+        root: targets.root.clone(),
+        exclusions: config.exclusions()?,
     };
-    for package in &metadata.packages {
-        if ids.contains(&package.id) {
-            for target in &package.targets {
-                walker.file(
-                    &target.src_path,
-                    target.src_path.parent().unwrap(),
-                    &target.edition,
-                )?;
-            }
-        }
+
+    for target in &targets.targets {
+        walker.file(
+            &target.src_path,
+            target.src_path.parent().unwrap(),
+            &target.edition,
+        )?;
     }
+
     Ok(Project {
-        root: metadata.workspace_root,
+        root: targets.root,
         files: walker.files.into_values().collect(),
         notices: walker.notices,
     })
