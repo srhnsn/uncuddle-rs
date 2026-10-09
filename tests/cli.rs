@@ -32,8 +32,7 @@ fn fixture(source: &str) -> tempfile::TempDir {
 
 #[test]
 fn check_fix_and_check_again_work_without_rustfmt_on_path() {
-    let source =
-        "fn main() {\n    let a = 1;\n    if a > 0 {\n        println!(\"positive\");\n    }\n}\n";
+    let source = "fn main() {\n    let a = 1;\n    if a > 0 {\n        println!(\"positive\");\n    }\n}\n/// An adjacent function.\nfn helper() {}\n";
     let dir = fixture(source);
     let run = |fix: bool| {
         let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-uncuddle"));
@@ -58,6 +57,7 @@ fn check_fix_and_check_again_work_without_rustfmt_on_path() {
         "{}",
         String::from_utf8_lossy(&check.stderr)
     );
+    assert!(String::from_utf8_lossy(&check.stderr).contains("function-spacing"));
     assert_eq!(
         std::fs::read_to_string(dir.path().join("src/main.rs")).unwrap(),
         source
@@ -71,6 +71,11 @@ fn check_fix_and_check_again_work_without_rustfmt_on_path() {
         String::from_utf8_lossy(&fixed.stderr)
     );
     assert!(run(false).status.success());
+    assert!(
+        std::fs::read_to_string(dir.path().join("src/main.rs"))
+            .unwrap()
+            .contains("}\n\n/// An adjacent function.\nfn helper()")
+    );
     assert!(!dir.path().join("Cargo.lock").exists());
 
     let fmt = Command::new(env!("CARGO"))
@@ -105,8 +110,9 @@ fn unresolved_fixes_and_operational_errors_have_different_exit_codes() {
 
 #[test]
 fn loads_config_before_parsing_excluded_files_and_supports_skip_file() {
-    let dir =
-        fixture("mod generated; mod ignored;\nfn main() {\nlet a = 1;\nif a > 0 { work(); }\n}\n");
+    let dir = fixture(
+        "mod generated; mod ignored;\n\nfn main() {\nlet a = 1;\nif a > 0 { work(); }\n}\n",
+    );
     std::fs::write(dir.path().join("src/generated.rs"), "invalid syntax").unwrap();
     std::fs::write(
         dir.path().join("src/ignored.rs"),
@@ -153,4 +159,5 @@ fn list_rules_does_not_require_a_cargo_project() {
 
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).contains("before-control-flow (default)"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("function-spacing (default)"));
 }

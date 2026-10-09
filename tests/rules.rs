@@ -260,7 +260,7 @@ fn optional_rules_have_explicit_boundaries_and_stay_off_by_default() {
 
 #[test]
 fn supports_2015_keyword_identifiers_without_rewriting_source() {
-    let source = "fn async() {\nlet dyn = 1;\nif dyn > 0 { work(); }\n}\nfn f(x: &dyn Trait) { let await = x; consume(await); }";
+    let source = "fn async() {\nlet dyn = 1;\nif dyn > 0 { work(); }\n}\n\nfn f(x: &dyn Trait) { let await = x; consume(await); }";
     let config = Config::default();
     let got =
         uncuddle::analysis::analyze_with_edition(Path::new("legacy.rs"), source, "2015", &config)

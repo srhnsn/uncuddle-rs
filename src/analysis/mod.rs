@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::diagnostic::Diagnostic;
 use attributes::{expr_attrs, skip};
+use items::FunctionItem;
 use std::collections::BTreeMap;
 use std::path::Path;
 use syn::Expr;
@@ -9,6 +10,7 @@ use syn::visit::{self, Visit};
 use trivia::Gap;
 
 mod attributes;
+mod items;
 mod lines;
 mod rules;
 mod statements;
@@ -92,7 +94,12 @@ impl Analyzer<'_> {
             line,
             column,
             rule,
-            message: "expected a blank line before this statement".into(),
+            message: if rule == "function-spacing" {
+                "expected a blank line between function definitions and sibling items"
+            } else {
+                "expected a blank line before this statement"
+            }
+            .into(),
             insert_at,
         });
     }
@@ -113,9 +120,44 @@ impl Analyzer<'_> {
             }
         }
     }
+
+    fn items<T: FunctionItem>(&mut self, items: &[T]) {
+        if !self.config.enabled("function-spacing") {
+            return;
+        }
+
+        for pair in items.windows(2) {
+            if pair[0].is_function_definition() || pair[1].is_function_definition() {
+                self.boundary(pair[0].span(), pair[1].span(), "function-spacing");
+            }
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for Analyzer<'_> {
+    fn visit_file(&mut self, file: &'ast syn::File) {
+        self.items(&file.items);
+        visit::visit_file(self, file);
+    }
+
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        if let Some((_, items)) = &item.content {
+            self.items(items);
+        }
+
+        visit::visit_item_mod(self, item);
+    }
+
+    fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+        self.items(&item.items);
+        visit::visit_item_impl(self, item);
+    }
+
+    fn visit_item_trait(&mut self, item: &'ast syn::ItemTrait) {
+        self.items(&item.items);
+        visit::visit_item_trait(self, item);
+    }
+
     fn visit_block(&mut self, block: &'ast syn::Block) {
         self.block(block);
         visit::visit_block(self, block);

@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 pub const DEFAULT_RULES: &[&str] = &[
+    "function-spacing",
     "before-control-flow",
     "after-control-flow",
     "statement-groups",

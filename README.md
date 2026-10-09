@@ -43,6 +43,7 @@ Macro arguments are opaque, including implicit captures in formatting strings.
 
 | Rule | Default | Policy |
 | --- | --- | --- |
+| `function-spacing` | On | Separate function definitions and methods from sibling items, including short bodies. |
 | `before-control-flow` | On | Separate standalone if/match/for/while/loop from preceding statements. |
 | `after-control-flow` | On | Separate completed standalone control flow from subsequent statements. |
 | `statement-groups` | On | Separate unrelated transitions between bindings/assignments and expressions. |
@@ -57,6 +58,10 @@ The default short-block exemption is two immediate statements/expressions,
 including the exit or tail. Physical line count does not affect it. Single-expression
 bodies and `let x = compute(); x` stay compact. Overlapping rules produce one
 boundary diagnostic and one insertion. Existing blank-line boundaries are retained.
+Function spacing applies in files, inline modules, impls, traits with default method
+bodies, and between local items. Consecutive trait signatures without bodies stay
+compact. Comments, documentation, and attributes stay attached to their items.
+Disable it with `disable = ["function-spacing"]` if you prefer grouped methods.
 
 Create `uncuddle.toml` at the **workspace root**, or pass `--config path/to/file.toml`:
 

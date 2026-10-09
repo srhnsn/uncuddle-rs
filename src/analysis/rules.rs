@@ -1,5 +1,6 @@
 //! Pure boundary policies. The visitor chooses locations; these predicates
 //! decide which rule applies. Registry order resolves overlapping rules.
+use super::items::FunctionItem;
 use super::statements::{Kind, group_transition, has_block_value, kind, related};
 use crate::config::Config;
 use syn::Stmt;
@@ -16,6 +17,10 @@ struct Boundary<'a> {
 type Predicate = fn(&Boundary<'_>) -> bool;
 
 const POLICIES: &[(&str, Predicate)] = &[
+    ("function-spacing", |b| {
+        matches!((b.previous, b.next), (Stmt::Item(previous), Stmt::Item(next))
+            if previous.is_function_definition() || next.is_function_definition())
+    }),
     ("before-control-flow", |b| b.right == Kind::Control),
     ("after-control-flow", |b| b.left == Kind::Control),
     ("before-exit", |b| b.is_large && b.right == Kind::Exit),

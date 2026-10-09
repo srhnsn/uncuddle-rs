@@ -98,6 +98,14 @@ fn rustfmt_never_reverts_uncuddle_fixes() {
         "fn f() { let x = 1; x = 2; consume(x); }",
         "fn f() { const X: i32 = 1; consume(X); }",
         "fn f() { let a = 1;\n#[allow(unused_variables)]\nlet b = { let x = 1; let y = 2; x }; }",
+        "fn first() {}\n// Next function.\n/// Documentation.\n#[allow(unused)]\nfn second() {}",
+        "fn first() {} /* trailing\n\ncomment */\n/* next function\n\ncomment */\nfn second() {}",
+        "mod nested { fn first() {} fn second() {} }",
+        "impl Example { fn first() {}\n// Next method.\n/// Documentation.\n#[allow(unused)]\nfn second() {} }",
+        "impl Trait for Example { fn first() {} fn second() {} }",
+        "trait Example { fn first(); fn second() {} fn third(); fn fourth() {} }",
+        "fn outer() { fn first() {} fn second() {} }",
+        "const FIRST: u8 = 1;\nfn middle() {}\nconst LAST: u8 = 2;",
     ];
     let configs = [
         "",
@@ -131,6 +139,7 @@ fn rustfmt_never_reverts_uncuddle_fixes() {
             sources.push("fn f() { let Some(x) = value() else { return; }; if x > 0 { work(); } }");
 
             if edition != "2015" {
+                sources.push("impl Example { async fn first() {} async fn second() {} }");
                 sources.push("async fn f() { let x = read().await?; if x > 0 { work().await; } finish().await?; }");
                 sources.push("fn f() { let x = async { let a = 1; let b = 2; a }; finish(); }");
             }

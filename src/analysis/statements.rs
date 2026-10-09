@@ -118,6 +118,7 @@ impl<'ast> Visit<'ast> for Names {
         self.names.insert(pat.ident.unraw().to_string());
         visit::visit_pat_ident(self, pat);
     }
+
     fn visit_expr_path(&mut self, expr: &'ast syn::ExprPath) {
         if expr.qself.is_none()
             && expr.path.leading_colon.is_none()
@@ -127,10 +128,15 @@ impl<'ast> Visit<'ast> for Names {
                 .insert(expr.path.segments[0].ident.unraw().to_string());
         }
     }
+
     // Bodies with their own bindings are not evidence of immediate consumption.
     fn visit_expr_closure(&mut self, _: &'ast syn::ExprClosure) {}
+
     fn visit_expr_block(&mut self, _: &'ast syn::ExprBlock) {}
+
     fn visit_expr_async(&mut self, _: &'ast syn::ExprAsync) {}
+
     fn visit_block(&mut self, _: &'ast syn::Block) {}
+
     fn visit_macro(&mut self, _: &'ast syn::Macro) {}
 }

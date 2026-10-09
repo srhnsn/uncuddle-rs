@@ -13,7 +13,8 @@ entry points are `analysis::analyze` (modern syntax), `analysis::analyze_with_ed
 | `discovery/paths.rs` | Resolve static module path alternatives without evaluating cfg. |
 | `parsing.rs` | AST parsing with source byte offsets and edition-2015 keyword support. |
 | `source.rs` | Recognize opt-out markers in leading comments. |
-| `analysis/mod.rs` | Visit normal Rust AST blocks and deduplicate boundary diagnostics. |
+| `analysis/mod.rs` | Visit normal Rust AST blocks and item lists, deduplicate boundary diagnostics. |
+| `analysis/items.rs` | Identify function definitions in file, impl, and trait item lists. |
 | `analysis/rules.rs` | Pure boundary predicates, with explicit overlap precedence. |
 | `analysis/statements.rs` | Classify statements and conservatively recognize related use. |
 | `analysis/trivia.rs` | Find safe gaps without splitting attached comments. |
