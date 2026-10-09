@@ -1,13 +1,22 @@
 //! rustfmt is a TEST dependency only. This suite intentionally fails if the
 //! component is missing: silently skipping would hide compatibility regressions.
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use uncuddle::{analysis::analyze_with_edition, config::Config, fix};
 
 fn format(source: &str, edition: &str, config: &Path) -> String {
     let executable = std::env::var_os("UNCUDDLE_TEST_RUSTFMT").unwrap_or_else(|| "rustfmt".into());
-    let mut child = Command::new(executable)
+    // Exercise file formatting, as cargo fmt does. Stdin/stdout formatting has
+    // different Auto newline behavior on Windows and is not our runtime path.
+    // Close the temporary file handle before rustfmt opens it on Windows.
+    let path = tempfile::Builder::new()
+        .prefix("fixture-")
+        .suffix(".rs")
+        .tempfile_in(config.parent().unwrap())
+        .unwrap()
+        .into_temp_path();
+    std::fs::write(&path, source).unwrap();
+    let output = Command::new(executable)
         .args([
             "--edition",
             edition,
@@ -16,18 +25,9 @@ fn format(source: &str, edition: &str, config: &Path) -> String {
             "--config-path",
         ])
         .arg(config)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .arg(&path)
+        .output()
         .expect("install the rustfmt component before running compatibility tests");
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(source.as_bytes())
-        .unwrap();
-    let output = child.wait_with_output().unwrap();
 
     assert!(
         output.status.success(),
@@ -35,7 +35,43 @@ fn format(source: &str, edition: &str, config: &Path) -> String {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    String::from_utf8(output.stdout).unwrap()
+    std::fs::read_to_string(path).unwrap()
+}
+
+#[test]
+fn auto_newlines_preserve_lf_and_crlf_files_through_fixing() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("rustfmt.toml");
+    std::fs::write(&path, "newline_style = 'Auto'\n").unwrap();
+
+    let config = Config::default();
+
+    for newline in ["\n", "\r\n"] {
+        let source =
+            "fn f() {\n    let a = 1;\n    if a > 0 {\n        work();\n    }\n    finish();\n}\n"
+                .replace('\n', newline);
+        let baseline = format(&source, "2024", &path);
+
+        assert_eq!(
+            baseline, source,
+            "Auto must retain the input file's line endings"
+        );
+
+        let diagnostics =
+            analyze_with_edition(Path::new("fixture.rs"), &baseline, "2024", &config).unwrap();
+
+        assert!(!diagnostics.is_empty());
+
+        let fixed = fix::apply(&baseline, &diagnostics).unwrap();
+
+        assert_eq!(format(&fixed, "2024", &path), fixed);
+        assert!(fixed.contains(&format!("let a = 1;{newline}{newline}    if")));
+        assert!(
+            analyze_with_edition(Path::new("fixture.rs"), &fixed, "2024", &config)
+                .unwrap()
+                .is_empty()
+        );
+    }
 }
 
 #[test]
